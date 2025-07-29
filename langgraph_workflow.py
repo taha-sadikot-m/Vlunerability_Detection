@@ -1,7 +1,6 @@
 # langgraph_workflow.py - LangGraph Vulnerability Detection Workflow
 from typing import TypedDict, List, Dict, Any, Optional
-from langgraph.graph import StateGraph, END, START
-from langgraph.prebuilt import ToolNode
+from langgraph.graph import StateGraph
 import os
 import logging
 from datetime import datetime
@@ -69,7 +68,7 @@ class VulnerabilityDetectionWorkflow:
         workflow.add_node("compile_report", self.compile_final_report)
         
         # Define the workflow edges
-        workflow.add_edge(START, "initialize")
+        workflow.set_entry_point("initialize")
         workflow.add_edge("initialize", "static_analysis")
         workflow.add_conditional_edges(
             "static_analysis",
@@ -90,7 +89,9 @@ class VulnerabilityDetectionWorkflow:
         )
         workflow.add_edge("llm_analysis", "generate_mitigations")
         workflow.add_edge("generate_mitigations", "compile_report")
-        workflow.add_edge("compile_report", END)
+        
+        # Add end node
+        workflow.set_finish_point("compile_report")
         
         # Compile the workflow
         self.graph = workflow.compile()

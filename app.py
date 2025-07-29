@@ -1,5 +1,5 @@
 # app.py - Main Flask Application
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import os
@@ -32,6 +32,11 @@ active_scans = {}
 
 @app.route('/')
 def index():
+    """Serve the main HTML page"""
+    return render_template('index.html')
+
+@app.route('/api/health')
+def health_check():
     """Health check endpoint"""
     return jsonify({
         "status": "healthy",

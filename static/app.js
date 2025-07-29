@@ -95,7 +95,61 @@ class VulnDetectApp {
     this.isScanning = false;
     this.charts = {};
     
+    // Initialize Socket.IO connection
+    this.socket = io();
+    this.setupSocketEvents();
+    
     this.init();
+  }
+
+  setupSocketEvents() {
+    // Handle socket connection
+    this.socket.on('connect', () => {
+      console.log('Connected to VulnDetect AI Backend');
+    });
+
+    // Handle scan progress updates
+    this.socket.on('scan_progress', (data) => {
+      console.log('Scan progress:', data);
+      const progressBar = document.getElementById('progressBar');
+      const logOutput = document.getElementById('logOutput');
+      
+      if (progressBar && logOutput) {
+        progressBar.style.width = data.progress + '%';
+        logOutput.textContent += data.message + '\n';
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+    });
+
+    // Handle scan completion
+    this.socket.on('scan_completed', (data) => {
+      console.log('Scan completed:', data);
+      this.isScanning = false;
+      this.updateScanButton();
+      
+      // Update with real data from backend
+      if (data.results) {
+        this.vulnerabilities = data.results.vulnerabilities || this.vulnerabilities;
+        this.showResults();
+      }
+    });
+
+    // Handle scan errors
+    this.socket.on('scan_error', (data) => {
+      console.error('Scan error:', data);
+      this.isScanning = false;
+      this.updateScanButton();
+      
+      const progressStatus = document.getElementById('progressStatus');
+      const logOutput = document.getElementById('logOutput');
+      
+      if (progressStatus && logOutput) {
+        progressStatus.textContent = 'Failed';
+        progressStatus.className = 'status status--error';
+        logOutput.textContent += '[ERROR] ' + data.error + '\n';
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+    });
   }
 
   init() {
@@ -189,6 +243,7 @@ class VulnDetectApp {
     });
 
     if (validFiles.length > 0) {
+      // Store file objects for upload
       this.uploadedFiles = [...this.uploadedFiles, ...validFiles];
       this.updateFilePreview();
       this.updateScanButton();
@@ -270,6 +325,66 @@ class VulnDetectApp {
     progressStatus.textContent = 'Scanning';
     progressStatus.className = 'status status--warning';
     
+    // Prepare scan configuration
+    const scanConfig = {
+      files: this.uploadedFiles.map(file => ({
+        name: file.name,
+        size: file.size,
+        type: file.type
+      })),
+      language: document.getElementById('languageSelect').value,
+      sast_enabled: document.querySelector('input[value="SAST Analysis"]').checked,
+      llm_analysis: document.querySelector('input[value="LLM Deep Analysis"]').checked,
+      dependency_scan: document.querySelector('input[value="Dependency Scanning"]').checked,
+      cve_lookup: document.querySelector('input[value="CVE/CWE Lookup"]').checked,
+      deep_analysis: document.querySelector('input[name="depth"][value="Deep"]').checked
+    };
+    
+    try {
+      // Log initial message
+      logOutput.textContent += '[INFO] Preparing scan configuration...\n';
+      
+      // Make API call to start scan
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(scanConfig)
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start scan');
+      }
+      
+      // Log success message
+      logOutput.textContent += `[INFO] Scan initiated with ID: ${data.scan_id}\n`;
+      
+      // Subscribe to scan updates via Socket.IO
+      this.socket.emit('subscribe_scan', { scan_id: data.scan_id });
+      
+      // For demo/fallback purposes, if socket doesn't work
+      if (!this.socket.connected) {
+        await this.simulateScanProgress();
+        this.showResults();
+      }
+    } catch (error) {
+      console.error('Error starting scan:', error);
+      logOutput.textContent += `[ERROR] ${error.message}\n`;
+      progressStatus.textContent = 'Failed';
+      progressStatus.className = 'status status--error';
+      this.isScanning = false;
+      this.updateScanButton();
+    }
+  }
+  
+  // Keep the simulation for demo/fallback purposes
+  async simulateScanProgress() {
+    const progressBar = document.getElementById('progressBar');
+    const logOutput = document.getElementById('logOutput');
+    
     const steps = [
       { progress: 10, message: '[INFO] Initializing scan engine...' },
       { progress: 20, message: '[INFO] Loading vulnerability signatures...' },
@@ -288,12 +403,12 @@ class VulnDetectApp {
       logOutput.scrollTop = logOutput.scrollHeight;
     }
 
+    const progressStatus = document.getElementById('progressStatus');
     progressStatus.textContent = 'Complete';
     progressStatus.className = 'status status--success';
     
     this.isScanning = false;
     this.updateScanButton();
-    this.showResults();
   }
 
   delay(ms) {
