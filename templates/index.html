@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en" data-color-scheme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VulnDetect AI – MVP Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <header class="header">
+      <div class="container flex items-center justify-between py-16">
+        <h1 class="logo">VulnDetect <span class="accent">AI</span></h1>
+        <nav class="nav flex gap-16" aria-label="Primary">
+          <button type="button" class="nav__link active" data-section="dashboard">Dashboard</button>
+          <button type="button" class="nav__link" data-section="findings">Findings</button>
+          <button type="button" class="nav__link" data-section="mitigations">Mitigations</button>
+          <button type="button" class="nav__link" data-section="reports">Reports</button>
+          <button type="button" class="nav__link" data-section="settings">Settings</button>
+        </nav>
+      </div>
+    </header>
+
+    <main class="container main-content">
+      <!-- DASHBOARD SECTION -->
+      <section id="dashboard" class="section active">
+        <div class="grid-2-col gap-16">
+          <!-- Upload + Preview -->
+          <div class="card" id="uploadCard">
+            <div class="card__header flex justify-between items-center">
+              <h2>Source Code Upload</h2>
+              <button id="clearFilesBtn" class="btn btn--sm btn--outline hidden" type="button">Clear</button>
+            </div>
+            <div class="card__body">
+              <div id="dropZone" class="drop-zone flex flex-col items-center justify-center gap-8" tabindex="0">
+                <svg width="48" height="48" fill="currentColor" aria-hidden="true"><path d="M24 4a2 2 0 0 1 2 2v18h18a2 2 0 1 1 0 4H26v18a2 2 0 1 1-4 0V28H4a2 2 0 1 1 0-4h18V6a2 2 0 0 1 2-2z"/></svg>
+                <p>Drag & drop files or <label for="fileInput" class="link-btn" id="browseLabel">browse</label></p>
+                <input type="file" id="fileInput" multiple class="hidden" accept=".py,.js,.java,.php,.go,.c,.cpp,.zip,.tar" />
+              </div>
+              <ul id="filePreview" class="file-preview hidden"></ul>
+            </div>
+          </div>
+          <!-- Scan Configuration -->
+          <div class="card" id="configCard">
+            <div class="card__header"><h2>Scan Configuration</h2></div>
+            <div class="card__body">
+              <form id="scanConfigForm" class="flex flex-col gap-16" novalidate>
+                <!-- Scan Types -->
+                <fieldset>
+                  <legend class="form-label">Scan Types</legend>
+                  <div class="flex flex-col gap-8">
+                    <label><input type="checkbox" name="scanType" value="SAST Analysis" checked /> SAST Analysis</label>
+                    <label><input type="checkbox" name="scanType" value="LLM Deep Analysis" checked /> LLM Deep Analysis</label>
+                    <label><input type="checkbox" name="scanType" value="Dependency Scanning" checked /> Dependency Vulnerability Scanning</label>
+                    <label><input type="checkbox" name="scanType" value="CVE/CWE Lookup" checked /> CVE/CWE Database Lookup</label>
+                  </div>
+                </fieldset>
+                <!-- Language -->
+                <div class="form-group">
+                  <label for="languageSelect" class="form-label">Language</label>
+                  <select id="languageSelect" class="form-control">
+                    <option>Python</option>
+                    <option>JavaScript</option>
+                    <option>Java</option>
+                    <option>PHP</option>
+                    <option>Go</option>
+                    <option>C/C++</option>
+                  </select>
+                </div>
+                <!-- Depth -->
+                <fieldset>
+                  <legend class="form-label">Scan Depth</legend>
+                  <div class="flex gap-16">
+                    <label><input type="radio" name="depth" value="Quick" /> Quick</label>
+                    <label><input type="radio" name="depth" value="Standard" checked /> Standard</label>
+                    <label><input type="radio" name="depth" value="Deep" /> Deep</label>
+                  </div>
+                </fieldset>
+                <button type="submit" class="btn btn--primary" id="startScanBtn" disabled title="Upload at least one source file to enable">Start Scan</button>
+              </form>
+            </div>
+          </div>
+        </div>
+        <!-- Progress Section -->
+        <div id="progressSection" class="card hidden mt-8">
+          <div class="card__header flex justify-between items-center"><h2>Scan Progress</h2><span id="progressStatus" class="status status--info">Pending</span></div>
+          <div class="card__body flex flex-col gap-16">
+            <div class="progress-bar-wrapper"><div id="progressBar" class="progress-bar" style="width:0%"></div></div>
+            <pre id="logOutput" class="terminal"></pre>
+          </div>
+        </div>
+        <!-- Results Dashboard -->
+        <div id="resultsSection" class="hidden mt-8 flex flex-col gap-16">
+          <!-- Overview Cards -->
+          <div class="overview-cards grid-4-col gap-16">
+            <div class="card overview">
+              <div class="card__body"><h3>Total Vulns</h3><p id="totalVulns" class="stat-value">0</p></div>
+            </div>
+            <div class="card overview critical"><div class="card__body"><h3>Critical</h3><p id="criticalCount" class="stat-value">0</p></div></div>
+            <div class="card overview high"><div class="card__body"><h3>High</h3><p id="highCount" class="stat-value">0</p></div></div>
+            <div class="card overview medium"><div class="card__body"><h3>Medium</h3><p id="mediumCount" class="stat-value">0</p></div></div>
+            <div class="card overview low"><div class="card__body"><h3>Low</h3><p id="lowCount" class="stat-value">0</p></div></div>
+            <div class="card overview"><div class="card__body"><h3>Security Score</h3><p id="securityScore" class="stat-value">0</p></div></div>
+          </div>
+          <!-- Charts -->
+          <div class="grid-2-col gap-16">
+            <div class="card"><div class="card__header"><h2>Vulnerability Distribution</h2></div><div class="card__body"><div class="chart-container" style="position:relative;height:300px;"><canvas id="vulnPie"></canvas></div></div></div>
+            <div class="card"><div class="card__header"><h2>Top Vulnerable Files</h2></div><div class="card__body"><div class="chart-container" style="position:relative;height:300px;"><canvas id="fileBar"></canvas></div></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FINDINGS SECTION -->
+      <section id="findings" class="section hidden">
+        <div class="flex justify-between items-center mb-8">
+          <h2>Findings</h2>
+          <div class="flex gap-8">
+            <button id="exportJSON" type="button" class="btn btn--sm btn--outline">Export JSON</button>
+            <button id="exportCSV" type="button" class="btn btn--sm btn--outline">Export CSV</button>
+            <button id="exportPDF" type="button" class="btn btn--sm btn--outline">Export PDF</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card__body">
+            <input type="search" id="findingsSearch" class="form-control mb-8" placeholder="Search vulnerabilities…" />
+            <div class="table-wrapper">
+              <table id="findingsTable" class="findings-table">
+                <thead>
+                  <tr>
+                    <th>ID</th><th>Type</th><th>Severity</th><th>File</th><th>Line</th><th>CVE</th><th>Confidence</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div id="findingDetail" class="card hidden mt-8"></div>
+      </section>
+
+      <!-- MITIGATIONS SECTION -->
+      <section id="mitigations" class="section hidden">
+        <h2>Mitigation Recommendations</h2>
+        <p>Select a finding in the Findings tab to see mitigation suggestions.</p>
+      </section>
+
+      <!-- REPORTS -->
+      <section id="reports" class="section hidden">
+        <h2>Reports</h2>
+        <p>Coming soon.</p>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="settings" class="section hidden">
+        <h2>Settings</h2>
+        <p>Coming soon.</p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
